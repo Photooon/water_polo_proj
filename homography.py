@@ -1,5 +1,6 @@
 import os
 import cv2
+import json
 import config
 import argparse
 import numpy as np
@@ -277,6 +278,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Detech pool boundaries and estimate homography')
     parser.add_argument('input', type=str, help='Input image path or directory')
     parser.add_argument('--output', default="data/homography", type=str, help='Output image dir')
+    parser.add_argument('--data-output', default="data/homography_data", type=str, help='Output directory for homography data')
     
     args = parser.parse_args()
 
@@ -286,11 +288,27 @@ if __name__ == "__main__":
     estimator = HomographyEstimator()
 
     os.makedirs(args.output, exist_ok=True)
+    os.makedirs(args.data_output, exist_ok=True)
 
     for image_path in image_files:
         frame = cv2.imread(image_path)
 
         estimator.detect(frame)
+        
+        # Save homography data
+        if estimator.homography_matrix is not None:
+            homography_data = {
+                "image_path": image_path,
+                "homography_matrix": estimator.homography_matrix.tolist(),
+                "corners": estimator.corners.tolist() if estimator.corners is not None else [],
+                "img_pool_points": estimator.img_pool_points.tolist() if estimator.img_pool_points is not None else []
+            }
+            
+            json_filename = os.path.splitext(os.path.basename(image_path))[0] + ".json"
+            json_path = os.path.join(args.data_output, json_filename)
+            with open(json_path, "w") as f:
+                json.dump(homography_data, f, indent=4)
+
         annotated_frame = estimator.visualize_corners(frame)
         
         output_path = os.path.join(args.output, os.path.basename(image_path))
