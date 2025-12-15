@@ -40,7 +40,10 @@ def extract_frames_by_count(video_path: str,
                             output_dir: str = "extracted_frames",
                             check_pool: bool = True,
                             skip_similar: bool = True,
-                            similarity_threshold: float = 0.95) -> List[str]:
+                            similarity_threshold: float = 0.95,
+
+                            end_time: Optional[float] = None,
+                            start_time: float = 0.0) -> List[str]:
     """
     Extract a specified number of frames evenly distributed throughout the video
     
@@ -73,11 +76,20 @@ def extract_frames_by_count(video_path: str,
     os.makedirs(output_dir, exist_ok=True)
     
     # Calculate frame indices to extract
-    if num_frames >= total_frames:
-        frame_indices = list(range(total_frames))
+    max_frame_idx = total_frames
+    start_frame_idx = int(start_time * fps)
+    
+    if end_time is not None:
+        max_frame_idx = min(int(end_time * fps), total_frames)
+        print(f"Limiting processing to {start_time}s - {end_time}s ({start_frame_idx} - {max_frame_idx} frames)")
     else:
-        step = total_frames / num_frames
-        frame_indices = [int(i * step) for i in range(num_frames)]
+        print(f"Limiting processing to start from {start_time}s ({start_frame_idx} frame)")
+
+    if num_frames >= max_frame_idx - start_frame_idx:
+        frame_indices = list(range(start_frame_idx, max_frame_idx))
+    else:
+        step = (max_frame_idx - start_frame_idx) / num_frames
+        frame_indices = [int(start_frame_idx + i * step) for i in range(num_frames)]
     
     extracted_paths = []
     prev_frame = None
@@ -128,7 +140,9 @@ def extract_frames_by_interval(video_path: str,
                                output_dir: str = "extracted_frames",
                                check_pool: bool = True,
                                skip_similar: bool = True,
-                               similarity_threshold: float = 0.95) -> List[str]:
+                               similarity_threshold: float = 0.95,
+                               end_time: Optional[float] = None,
+                               start_time: float = 0.0) -> List[str]:
     """
     Extract frames at regular time intervals
     
@@ -171,11 +185,15 @@ def extract_frames_by_interval(video_path: str,
     prev_frame = None
     pool_skipped = 0
     similar_skipped = 0
-    frame_idx = 0
+    frame_idx = int(start_time * fps)
     
     while True:
         if max_frames and len(extracted_paths) >= max_frames:
             print(f"\nReached maximum frame limit: {max_frames}")
+            break
+            
+        if end_time is not None and frame_idx / fps > end_time:
+            print(f"\nReached end time limit: {end_time}s")
             break
         
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
@@ -356,6 +374,10 @@ if __name__ == "__main__":
                        help="Time interval in seconds (interval mode)")
     parser.add_argument("--max-frames", type=int, default=None,
                        help="Maximum frames to extract (interval mode)")
+    parser.add_argument("--end-time", type=float, default=None,
+                       help="End time in seconds (only process video up to this timestamp)")
+    parser.add_argument("--start-time", type=float, default=0.0,
+                       help="Start time in seconds (skip frames before this timestamp)")
     parser.add_argument("--output-dir", default="data/frames",
                        help="Output directory for frames")
     parser.add_argument("--no-pool-check", action="store_true",
@@ -391,7 +413,9 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             check_pool=not args.no_pool_check,
             skip_similar=not args.no_skip_similar,
-            similarity_threshold=args.similarity
+            similarity_threshold=args.similarity,
+            end_time=args.end_time,
+            start_time=args.start_time
         )
     
     elif args.mode == "interval":
@@ -404,5 +428,7 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             check_pool=not args.no_pool_check,
             skip_similar=not args.no_skip_similar,
-            similarity_threshold=args.similarity
+            similarity_threshold=args.similarity,
+            end_time=args.end_time,
+            start_time=args.start_time
         )

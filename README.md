@@ -44,7 +44,7 @@ python detector.py data/frames
 - Heatmap
 
 ```bash
-python heatmap.py data/frames
+python heatmap.py 
 ```
 
 

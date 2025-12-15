@@ -150,7 +150,9 @@ class HomographyEstimator:
             next_idx = (next_idx + direction + num_corners) % num_corners
 
         if bottom_corner_idx2 is None:
-            raise ValueError("Could not find second bottom corner")
+            # Fallback: if no corner found near bottom, use the last point we checked
+            # This likely corresponds to where the pool leaves the frame
+            bottom_corner_idx2 = next_idx
 
         top_left_idx = top_corner_idx if corners[top_corner_idx][0] < corners[top_corner_idx2][0] else top_corner_idx2
         top_right_idx = top_corner_idx2 if top_left_idx == top_corner_idx else top_corner_idx
