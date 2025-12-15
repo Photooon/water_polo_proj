@@ -111,9 +111,34 @@ class HomographyEstimator:
         top_corner_idx2 = horizontal_edge["p1"] if horizontal_edge["p1"] != top_corner_idx else horizontal_edge["p2"]
         bottom_corner_idx = vertical_edge["p1"] if vertical_edge["p1"] != top_corner_idx else vertical_edge["p2"]
 
-        # find another bottom corner by traversing along the contour
         direction = 1 if bottom_corner_idx - top_corner_idx == 1 or (bottom_corner_idx == 0 and top_corner_idx == num_corners - 1) else -1
         next_idx = (bottom_corner_idx + direction + num_corners) % num_corners
+
+        # re-calculate bottom corner if the pool is cut off
+        if corners[bottom_corner_idx][0] < 10 and corners[next_idx][0] < 10:
+            next_next_idx = (next_idx + direction + num_corners) % num_corners
+            # calculate the line intersection between vertical_edge and next_next_idx->next_idx
+            x1, y1 = corners[vertical_edge["p1"]]
+            x2, y2 = corners[vertical_edge["p2"]]
+            x3, y3 = corners[next_next_idx]
+            x4, y4 = corners[next_idx]
+            denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+            if denom != 0:
+                px = ((x1 * y2 - y1 * x2) * (x3 - x4) - (x1 - x2) * (x3 * y4 - y3 * x4)) / denom
+                py = ((x1 * y2 - y1 * x2) * (y3 - y4) - (y1 - y2) * (x3 * y4 - y3 * x4)) / denom
+                corners = np.vstack([corners[:bottom_corner_idx+1], [int(px), int(py)], corners[bottom_corner_idx+1:]])
+                bottom_corner_idx = bottom_corner_idx + 1
+                num_corners += 1
+
+                if top_corner_idx >= bottom_corner_idx:
+                    top_corner_idx += 1
+                if top_corner_idx2 >= bottom_corner_idx:
+                    top_corner_idx2 += 1
+                if next_idx >= bottom_corner_idx:
+                    next_idx += 1
+
+
+        # find another bottom corner by traversing along the contour
         while next_idx != top_corner_idx:
             corner = corners[next_idx]
             if frame.shape[0] - corner[1] < config.BOTTOM_MARGIN:
@@ -139,6 +164,8 @@ class HomographyEstimator:
             self.left_pool_points if top_left_idx == top_corner_idx else self.right_pool_points,
             method=cv2.RANSAC
         )
+
+        self.corners = corners
 
     def transform_point(self, point: Tuple[int, int]) -> Optional[Tuple[float, float]]:
         """
@@ -170,6 +197,10 @@ class HomographyEstimator:
         """
         annotated_frame = frame.copy()
         
+        # draw detected contour
+        for x, y in self.corners:
+            cv2.circle(annotated_frame, (int(x), int(y)), 5, (0, 0, 255), -1)
+
         # Draw corners in empty yellow circles and connect corners with lines
         for i, corner in enumerate(self.img_pool_points):
             x, y = int(corner[0]), int(corner[1])
@@ -240,7 +271,7 @@ class HomographyEstimator:
                 cv2.circle(canvas, (px, py), radius, color, -1)
         
         return canvas
-    
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Detech pool boundaries and estimate homography')
