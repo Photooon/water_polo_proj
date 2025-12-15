@@ -1,5 +1,6 @@
 import cv2
 import os
+import shutil
 import numpy as np
 import argparse
 
@@ -320,11 +321,35 @@ def get_video_info(video_path: str) -> dict:
     return info
 
 
+def clean_data_dir(data_dir: str = "data", keep_dirs: List[str] = ["video"]):
+    """
+    Clean all directories in data directory except specified ones
+    """
+    if not os.path.exists(data_dir):
+        print(f"Directory {data_dir} does not exist.")
+        return
+
+    print(f"Cleaning {data_dir}...")
+    for item in os.listdir(data_dir):
+        if item in keep_dirs:
+            continue
+            
+        item_path = os.path.join(data_dir, item)
+        if os.path.isdir(item_path):
+            shutil.rmtree(item_path)
+            print(f"  Removed directory: {item}")
+        else:
+            os.remove(item_path)
+            print(f"  Removed file: {item}")
+    print("Clean complete.")
+
+
+
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser(description="Extract frames from water polo video")
-    parser.add_argument("video_path", help="Path to video file")
-    parser.add_argument("--mode", choices=["count", "interval", "info"], default="count",
-                       help="Extraction mode: count (fixed number), interval (time-based), or info (video info)")
+    parser.add_argument("video_path", nargs="?", help="Path to video file (required for extraction modes)")
+    parser.add_argument("--mode", choices=["count", "interval", "info", "clean"], default="count",
+                       help="Extraction mode: count, interval, info, or clean")
     parser.add_argument("--count", type=int, default=10,
                        help="Number of frames to extract (count mode)")
     parser.add_argument("--interval", type=float, default=1.0,
@@ -342,7 +367,12 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    if args.mode == "info":
+    if args.mode == "clean":
+        clean_data_dir()
+        
+    elif args.mode == "info":
+        if not args.video_path:
+            parser.error("video_path is required for info mode")
         info = get_video_info(args.video_path)
         if info:
             print("\n=== Video Information ===")
@@ -353,6 +383,8 @@ if __name__ == "__main__":
             print(f"Duration: {info['duration']:.2f} seconds")
     
     elif args.mode == "count":
+        if not args.video_path:
+            parser.error("video_path is required for count mode")
         extract_frames_by_count(
             args.video_path,
             num_frames=args.count,
@@ -363,6 +395,8 @@ if __name__ == "__main__":
         )
     
     elif args.mode == "interval":
+        if not args.video_path:
+            parser.error("video_path is required for interval mode")
         extract_frames_by_interval(
             args.video_path,
             interval_seconds=args.interval,
