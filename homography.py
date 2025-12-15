@@ -140,6 +140,7 @@ class HomographyEstimator:
 
 
         # find another bottom corner by traversing along the contour
+        bottom_corner_idx2 = None
         while next_idx != top_corner_idx:
             corner = corners[next_idx]
             if frame.shape[0] - corner[1] < config.BOTTOM_MARGIN:
@@ -147,6 +148,9 @@ class HomographyEstimator:
                 break
 
             next_idx = (next_idx + direction + num_corners) % num_corners
+
+        if bottom_corner_idx2 is None:
+            raise ValueError("Could not find second bottom corner")
 
         top_left_idx = top_corner_idx if corners[top_corner_idx][0] < corners[top_corner_idx2][0] else top_corner_idx2
         top_right_idx = top_corner_idx2 if top_left_idx == top_corner_idx else top_corner_idx
@@ -293,7 +297,11 @@ if __name__ == "__main__":
     for image_path in image_files:
         frame = cv2.imread(image_path)
 
-        estimator.detect(frame)
+        try:
+            estimator.detect(frame)
+        except Exception as e:
+            print(f"\tSkipping {image_path}: {e}")
+            continue
         
         # Save homography data
         if estimator.homography_matrix is not None:
