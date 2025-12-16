@@ -54,14 +54,3 @@ python heatmap.py
 ```bash
 python pipeline.py data/frames --output <output_directory>
 ```
-
-## TODO
-
-- [x] Data Preprocessing
-- [x] Fix Homography
-- [x] Players Detection
-- [ ] Players Track
-- [ ] Analysis
-  - [ ] HeatMap
-  - [ ] Summary
-- [ ] Final Report
