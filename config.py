@@ -15,8 +15,19 @@ MAX_DISAPPEARED = 30  # Max frames before removing a track
 MAX_DISTANCE = 100  # Max pixel distance for matching detections
 
 # Pool dimensions (in meters)
-POOL_LENGTH = 50.0  # Standard water polo pool length
-POOL_WIDTH = 21.0   # Standard water polo pool width
+# 25 yards = 22.86m (length), 42 feet = 12.8m (width)
+POOL_LENGTH = 22.86  # 25 yards
+POOL_WIDTH = 12.8    # 42 feet
+
+# Camera setup
+CAMERA_ANGLE_DEG = 45.0  # Camera angle relative to pool edge in degrees
+CAMERA_HEIGHT = 3.0      # Camera height in meters
+
+# Pool detection tuning
+# Fraction of pool length visible in frame (0.5 = half the pool visible)
+# The visible near edge is the full pool width (42 feet)
+# The visible pool extends about this fraction of the pool length
+VISIBLE_POOL_FRACTION = 0.5
 
 # Visualization parameters
 HEATMAP_BINS = 50
