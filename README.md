@@ -22,21 +22,21 @@ uv venv --python=3.12
 uv pip install -r requirements.txt
 ```
 
-- Extract image frames from video
+- Demo Extract Segment From Video
 
 ```bash
-python preprocess.py data/video/demo.mp4 --mode count --count 10
+python preprocess.py data/video/demo.mp4
 ```
 
-- Pool detection and Solve homography
+- Pool detection and solve homography
 
 ```bash
 python homography.py data/frames
 ```
 
-For simplicity, solving homography requires two corners of the pool appear in the image, otherwise the result may be inaccurate.
+For simplicity, solving homography requires two corners of the pool to appear in the image; otherwise, the result may be inaccurate.
 
-- Players detection
+- Player detection
 
 ```bash
 python detector.py data/frames
@@ -52,5 +52,16 @@ python heatmap.py
 - Full Pipeline (Homography + Detection) -> Topdown pool view
 
 ```bash
-python pipeline.py data/frames
+python pipeline.py data/frames --output <output_directory>
 ```
+
+## TODO
+
+- [x] Data Preprocessing
+- [x] Fix Homography
+- [x] Players Detection
+- [ ] Players Track
+- [ ] Analysis
+  - [ ] HeatMap
+  - [ ] Summary
+- [ ] Final Report
