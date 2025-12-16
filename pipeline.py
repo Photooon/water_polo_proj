@@ -6,6 +6,7 @@ import numpy as np
 from typing import Optional, List, Tuple
 from detector import PlayerDetector
 from homography import HomographyEstimator
+from heatmap import generate_heatmap
 from utils import get_imgs_from_dir_or_file
 
 class WaterPoloTrackingPipeline:
@@ -137,6 +138,8 @@ if __name__ == "__main__":
                        help="Save extended canvas debug image")
     parser.add_argument('--verbose', '-v', action='store_true',
                        help="Enable verbose logging output")
+    parser.add_argument('--homography-data', default="data/homography_data", type=str, help="Directory to save homography JSONs")
+    parser.add_argument('--detection-data', default="data/bounding_boxes", type=str, help="Directory to save detection JSONs")
     args = parser.parse_args()
 
     pipeline = WaterPoloTrackingPipeline(verbose=args.verbose)
@@ -186,4 +189,42 @@ if __name__ == "__main__":
             num_players = sum(1 for c in result["class_ids"] if c == 0)
             print(f"\tCorners: {status}, Players: {num_players}")
 
-    print("Done.")
+        # Save data for heatmap
+        if pipeline.homography.homography_matrix is not None:
+             # Save homography data
+            homography_data = {
+                "image_path": image_path,
+                "homography_matrix": pipeline.homography.homography_matrix.tolist(),
+                "corners": pipeline.homography.corners.tolist() if pipeline.homography.corners is not None else [],
+                "img_pool_points": pipeline.homography.img_pool_points.tolist() if pipeline.homography.img_pool_points is not None else []
+            }
+            
+            h_json_filename = os.path.splitext(os.path.basename(image_path))[0] + ".json"
+            h_json_path = os.path.join(args.homography_data, h_json_filename)
+            with open(h_json_path, "w") as f:
+                import json
+                json.dump(homography_data, f, indent=4)
+
+            # Save detection data
+            detection_data = {
+                "image_path": image_path,
+                "boxes": [box.tolist() for box in result["boxes"]],
+                "confidences": result["confidences"],
+                "class_ids": result["class_ids"]
+            }
+            
+            d_json_filename = os.path.splitext(os.path.basename(image_path))[0] + ".json"
+            d_json_path = os.path.join(args.detection_data, d_json_filename)
+            # create directory if it doesn't exist
+            os.makedirs(os.path.dirname(d_json_path), exist_ok=True)
+            with open(d_json_path, "w") as f:
+                json.dump(detection_data, f, indent=4)
+
+        print(f"\tProcessed {image_path}")
+
+    print("Pipeline processing completed.")
+    
+    # Generate heatmap
+    heatmap_output = os.path.join(args.output, "player_heatmap.png")
+    print(f"Generating heatmap to {heatmap_output}...")
+    generate_heatmap(args.homography_data, args.detection_data, heatmap_output)

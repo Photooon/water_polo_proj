@@ -1,5 +1,6 @@
 import cv2
 import os
+import shutil
 import numpy as np
 import argparse
 
@@ -39,7 +40,10 @@ def extract_frames_by_count(video_path: str,
                             output_dir: str = "extracted_frames",
                             check_pool: bool = True,
                             skip_similar: bool = True,
-                            similarity_threshold: float = 0.95) -> List[str]:
+                            similarity_threshold: float = 0.95,
+
+                            end_time: Optional[float] = None,
+                            start_time: float = 0.0) -> List[str]:
     """
     Extract a specified number of frames evenly distributed throughout the video
     
@@ -72,11 +76,20 @@ def extract_frames_by_count(video_path: str,
     os.makedirs(output_dir, exist_ok=True)
     
     # Calculate frame indices to extract
-    if num_frames >= total_frames:
-        frame_indices = list(range(total_frames))
+    max_frame_idx = total_frames
+    start_frame_idx = int(start_time * fps)
+    
+    if end_time is not None:
+        max_frame_idx = min(int(end_time * fps), total_frames)
+        print(f"Limiting processing to {start_time}s - {end_time}s ({start_frame_idx} - {max_frame_idx} frames)")
     else:
-        step = total_frames / num_frames
-        frame_indices = [int(i * step) for i in range(num_frames)]
+        print(f"Limiting processing to start from {start_time}s ({start_frame_idx} frame)")
+
+    if num_frames >= max_frame_idx - start_frame_idx:
+        frame_indices = list(range(start_frame_idx, max_frame_idx))
+    else:
+        step = (max_frame_idx - start_frame_idx) / num_frames
+        frame_indices = [int(start_frame_idx + i * step) for i in range(num_frames)]
     
     extracted_paths = []
     prev_frame = None
@@ -127,7 +140,9 @@ def extract_frames_by_interval(video_path: str,
                                output_dir: str = "extracted_frames",
                                check_pool: bool = True,
                                skip_similar: bool = True,
-                               similarity_threshold: float = 0.95) -> List[str]:
+                               similarity_threshold: float = 0.95,
+                               end_time: Optional[float] = None,
+                               start_time: float = 0.0) -> List[str]:
     """
     Extract frames at regular time intervals
     
@@ -170,11 +185,15 @@ def extract_frames_by_interval(video_path: str,
     prev_frame = None
     pool_skipped = 0
     similar_skipped = 0
-    frame_idx = 0
+    frame_idx = int(start_time * fps)
     
     while True:
         if max_frames and len(extracted_paths) >= max_frames:
             print(f"\nReached maximum frame limit: {max_frames}")
+            break
+            
+        if end_time is not None and frame_idx / fps > end_time:
+            print(f"\nReached end time limit: {end_time}s")
             break
         
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
@@ -396,12 +415,34 @@ def extract_frames_contiguous(video_path: str,
     print(f"  - Time covered: {time_covered:.2f}s (from {start_time:.2f}s to {start_time + time_covered:.2f}s)")
     
     return extracted_paths
+def clean_data_dir(data_dir: str = "data", keep_dirs: List[str] = ["video"]):
+    """
+    Clean all directories in data directory except specified ones
+    """
+    if not os.path.exists(data_dir):
+        print(f"Directory {data_dir} does not exist.")
+        return
+
+    print(f"Cleaning {data_dir}...")
+    for item in os.listdir(data_dir):
+        if item in keep_dirs:
+            continue
+            
+        item_path = os.path.join(data_dir, item)
+        if os.path.isdir(item_path):
+            shutil.rmtree(item_path)
+            print(f"  Removed directory: {item}")
+        else:
+            os.remove(item_path)
+            print(f"  Removed file: {item}")
+    print("Clean complete.")
+
 
 
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser(description="Extract frames from water polo video")
     parser.add_argument("video_path", help="Path to video file")
-    parser.add_argument("--mode", choices=["count", "interval", "contiguous", "info"], default="contiguous",
+    parser.add_argument("--mode", choices=["count", "interval", "contiguous", "info", "clean"], default="contiguous",
                        help="Extraction mode: count (fixed number), interval (time-based), contiguous (sequential for tracking), or info (video info)")
     parser.add_argument("--count", type=int, default=30,
                        help="Number of frames to extract (count/contiguous mode)")
@@ -413,6 +454,8 @@ if __name__ == "__main__":
                        help="Sampling rate - frames per second to extract (contiguous mode, default: 5)")
     parser.add_argument("--max-frames", type=int, default=None,
                        help="Maximum frames to extract (interval mode)")
+    parser.add_argument("--end-time", type=float, default=None,
+                       help="End time in seconds (only process video up to this timestamp)")
     parser.add_argument("--output-dir", default="data/frames",
                        help="Output directory for frames")
     parser.add_argument("--no-pool-check", action="store_true",
@@ -424,7 +467,12 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    if args.mode == "info":
+    if args.mode == "clean":
+        clean_data_dir()
+        
+    elif args.mode == "info":
+        if not args.video_path:
+            parser.error("video_path is required for info mode")
         info = get_video_info(args.video_path)
         if info:
             print("\n=== Video Information ===")
@@ -435,16 +483,22 @@ if __name__ == "__main__":
             print(f"Duration: {info['duration']:.2f} seconds")
     
     elif args.mode == "count":
+        if not args.video_path:
+            parser.error("video_path is required for count mode")
         extract_frames_by_count(
             args.video_path,
             num_frames=args.count,
             output_dir=args.output_dir,
             check_pool=not args.no_pool_check,
             skip_similar=not args.no_skip_similar,
-            similarity_threshold=args.similarity
+            similarity_threshold=args.similarity,
+            end_time=args.end_time,
+            start_time=args.start_time
         )
     
     elif args.mode == "interval":
+        if not args.video_path:
+            parser.error("video_path is required for interval mode")
         extract_frames_by_interval(
             args.video_path,
             interval_seconds=args.interval,
@@ -452,7 +506,9 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             check_pool=not args.no_pool_check,
             skip_similar=not args.no_skip_similar,
-            similarity_threshold=args.similarity
+            similarity_threshold=args.similarity,
+            end_time=args.end_time,
+            start_time=args.start_time
         )
     
     elif args.mode == "contiguous":

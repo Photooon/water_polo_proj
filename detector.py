@@ -1,5 +1,6 @@
 import os
 import cv2
+import json
 import config
 import argparse
 import numpy as np
@@ -227,6 +228,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Detect players and ball in water polo images')
     parser.add_argument('input', type=str, help='Input image path or directory')
     parser.add_argument('--output', default="data/detections", type=str, help='Output directory')
+    parser.add_argument('--data-output', default="data/bounding_boxes", type=str, help='Output directory for detection data')
     parser.add_argument('--conf', type=float, default=config.DETECTION_CONFIDENCE, 
                        help='Confidence threshold')
     
@@ -238,11 +240,25 @@ if __name__ == "__main__":
     detector = PlayerDetector(conf=args.conf)
     
     os.makedirs(args.output, exist_ok=True)
+    os.makedirs(args.data_output, exist_ok=True)
     
     for idx, image_path in enumerate(image_files):
         frame = cv2.imread(image_path)
         
         boxes, confidences, class_ids = detector.detect(frame)
+
+        # Save detection data
+        detection_data = {
+            "image_path": image_path,
+            "boxes": [box.tolist() for box in boxes],
+            "confidences": confidences,
+            "class_ids": class_ids
+        }
+        
+        json_filename = os.path.splitext(os.path.basename(image_path))[0] + ".json"
+        json_path = os.path.join(args.data_output, json_filename)
+        with open(json_path, "w") as f:
+            json.dump(detection_data, f, indent=4)
         
         annotated_frame = detector.visualize_detections(frame, boxes, confidences, class_ids)
         

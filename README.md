@@ -41,6 +41,13 @@ For simplicity, solving homography requires two corners of the pool to appear in
 python detector.py data/frames
 ```
 
+- Heatmap
+
+```bash
+python heatmap.py 
+```
+
+
 - Full Pipeline (Homography + Detection) -> Topdown pool view
 
 ```bash
