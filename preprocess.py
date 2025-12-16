@@ -320,15 +320,97 @@ def get_video_info(video_path: str) -> dict:
     return info
 
 
+def extract_frames_contiguous(video_path: str,
+                               start_time: float = 0.0,
+                               num_frames: int = 30,
+                               fps: float = 5.0,
+                               output_dir: str = "extracted_frames") -> List[str]:
+    """
+    Extract consecutive frames starting from a specific time for temporal tracking.
+    
+    Args:
+        video_path: Path to video file
+        start_time: Starting timestamp in seconds
+        num_frames: Number of frames to extract
+        fps: Frames per second to extract (sampling rate)
+        output_dir: Directory to save extracted frames
+        
+    Returns:
+        List of paths to extracted frames
+    """
+    cap = cv2.VideoCapture(video_path)
+    
+    if not cap.isOpened():
+        print(f"Error: Could not open video: {video_path}")
+        return []
+    
+    # Get video properties
+    video_fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = total_frames / video_fps if video_fps > 0 else 0
+    
+    print(f"Video: {video_path}")
+    print(f"Total frames: {total_frames}, FPS: {video_fps:.2f}, Duration: {duration:.2f}s")
+    print(f"Extracting {num_frames} frames at {fps}fps starting at {start_time}s")
+    
+    # Calculate frame interval based on desired fps
+    frame_interval = int(video_fps / fps) if fps > 0 else 1
+    if frame_interval < 1:
+        frame_interval = 1
+    
+    # Calculate starting frame
+    start_frame = int(start_time * video_fps)
+    if start_frame >= total_frames:
+        print(f"Error: Start time {start_time}s is beyond video duration {duration:.2f}s")
+        return []
+    
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+    
+    extracted_paths = []
+    current_frame = start_frame
+    
+    while len(extracted_paths) < num_frames and current_frame < total_frames:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
+        ret, frame = cap.read()
+        
+        if not ret:
+            print(f"Warning: Could not read frame {current_frame}")
+            break
+        
+        # Save frame with sequential numbering for proper ordering
+        timestamp = current_frame / video_fps
+        output_path = os.path.join(output_dir, f"frame_{len(extracted_paths):04d}_t{timestamp:.2f}s.jpg")
+        cv2.imwrite(output_path, frame)
+        extracted_paths.append(output_path)
+        
+        print(f"Extracted frame {len(extracted_paths)}/{num_frames} at {timestamp:.2f}s: {output_path}")
+        
+        current_frame += frame_interval
+    
+    cap.release()
+    
+    time_covered = (len(extracted_paths) - 1) / fps if fps > 0 and len(extracted_paths) > 1 else 0
+    print(f"\nExtraction complete!")
+    print(f"  - Extracted: {len(extracted_paths)} frames")
+    print(f"  - Time covered: {time_covered:.2f}s (from {start_time:.2f}s to {start_time + time_covered:.2f}s)")
+    
+    return extracted_paths
+
+
 if __name__ == "__main__":    
     parser = argparse.ArgumentParser(description="Extract frames from water polo video")
     parser.add_argument("video_path", help="Path to video file")
-    parser.add_argument("--mode", choices=["count", "interval", "info"], default="count",
-                       help="Extraction mode: count (fixed number), interval (time-based), or info (video info)")
-    parser.add_argument("--count", type=int, default=10,
-                       help="Number of frames to extract (count mode)")
+    parser.add_argument("--mode", choices=["count", "interval", "contiguous", "info"], default="contiguous",
+                       help="Extraction mode: count (fixed number), interval (time-based), contiguous (sequential for tracking), or info (video info)")
+    parser.add_argument("--count", type=int, default=30,
+                       help="Number of frames to extract (count/contiguous mode)")
     parser.add_argument("--interval", type=float, default=1.0,
                        help="Time interval in seconds (interval mode)")
+    parser.add_argument("--start-time", type=float, default=38,
+                       help="Starting timestamp in seconds (contiguous mode)")
+    parser.add_argument("--fps", type=float, default=3.0,
+                       help="Sampling rate - frames per second to extract (contiguous mode, default: 5)")
     parser.add_argument("--max-frames", type=int, default=None,
                        help="Maximum frames to extract (interval mode)")
     parser.add_argument("--output-dir", default="data/frames",
@@ -372,3 +454,13 @@ if __name__ == "__main__":
             skip_similar=not args.no_skip_similar,
             similarity_threshold=args.similarity
         )
+    
+    elif args.mode == "contiguous":
+        extract_frames_contiguous(
+            args.video_path,
+            start_time=args.start_time,
+            num_frames=args.count,
+            fps=args.fps,
+            output_dir=args.output_dir
+        )
+
